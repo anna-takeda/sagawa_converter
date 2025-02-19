@@ -110,14 +110,14 @@ def main():
                 data_df = data_df.sort_values(by=Y_col_idx, ascending=True, na_position='first')
                 data_df.reset_index(drop=True, inplace=True)
 
-                # --- (4) AZ列(52列目=0ベース51) に "001" を代入 ---
+                # --- (4) AZ列(52列目=0ベース51) に "007" を代入 ---
                 AZ_col_idx = 51
                 # 列数が足りない場合は増やす
                 if AZ_col_idx >= data_df.shape[1]:
                     # 今ある列数より多い場合は空列を追加する
                     for _ in range(AZ_col_idx - data_df.shape[1] + 1):
                         data_df[data_df.shape[1]] = ""
-                data_df[AZ_col_idx] = "001"
+                data_df[AZ_col_idx] = "007"
 
                 # --- (5) ヘッダー行を上に戻す ---
                 final_df = pd.concat([header_row.to_frame().T, data_df], ignore_index=True)
