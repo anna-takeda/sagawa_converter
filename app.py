@@ -22,10 +22,10 @@ def main():
     st.title("CSV変換ツール")
     st.write("""
     **▼主な機能**  
-    1. **Y列(25列目)の空欄を手入力で補完**  
-    2. **Y列を全角変換し、17文字目以降をZ列(26列目)へ移動**  
-    3. **Y列で昇順ソート**  
-    4. **AZ列(52列目)に「001」をセット**  
+    1. **商品名(25列目)の空欄を手入力で補完**  
+    2. **商品名を全角変換し、17文字目以降をZ列(26列目)へ移動**  
+    3. **商品名で昇順ソート**  
+    4. **AZ列(52列目)に「011」（取扱注意）をセット**  
     5. **その他の列は変更しない**  
     """)
 
@@ -110,14 +110,14 @@ def main():
                 data_df = data_df.sort_values(by=Y_col_idx, ascending=True, na_position='first')
                 data_df.reset_index(drop=True, inplace=True)
 
-                # --- (4) AZ列(52列目=0ベース51) に "007" を代入 ---
+                # --- (4) AZ列(52列目=0ベース51) に "011" を代入 ---
                 AZ_col_idx = 51
                 # 列数が足りない場合は増やす
                 if AZ_col_idx >= data_df.shape[1]:
                     # 今ある列数より多い場合は空列を追加する
                     for _ in range(AZ_col_idx - data_df.shape[1] + 1):
                         data_df[data_df.shape[1]] = ""
-                data_df[AZ_col_idx] = "007"
+                data_df[AZ_col_idx] = "011"
 
                 # --- (5) ヘッダー行を上に戻す ---
                 final_df = pd.concat([header_row.to_frame().T, data_df], ignore_index=True)
