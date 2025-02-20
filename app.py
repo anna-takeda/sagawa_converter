@@ -1,141 +1,114 @@
 import streamlit as st
 import pandas as pd
-import io
-import mojimoji  # pip install mojimoji
-
-st.set_page_config(
-    page_title="CSV変換ツール",
-    page_icon="📝",
-    layout="centered"
-)
+import mojimoji
 
 def to_fullwidth(s: str) -> str:
-    """
-    半角を全角に変換する関数。
-    （ascii=True, digit=True, kana=True）
-    """
+    """半角→全角変換"""
     if not isinstance(s, str):
         return s
     return mojimoji.han_to_zen(s, ascii=True, digit=True, kana=True)
 
 def main():
-    st.title("CSV変換ツール")
-    st.write("""
-    **▼主な機能**  
-    1. **商品名(25列目)の空欄を手入力で補完**  
-    2. **商品名を全角変換し、17文字目以降をZ列(26列目)へ移動**  
-    3. **商品名で昇順ソート**  
-    4. **AZ列(52列目)に「011」（取扱注意）をセット**  
-    5. **その他の列は変更しない**  
-    """)
+    st.title("Y列空欄を入力して変換するサンプル")
 
-    uploaded_file = st.file_uploader(
-        "CSVファイルをアップロードしてください（Shift-JIS想定）",
-        type=["csv"],
-    )
+    uploaded_file = st.file_uploader("CSVをアップロード", type=["csv"])
+    if not uploaded_file:
+        st.stop()
 
-    if uploaded_file is not None:
-        try:
-            # 読み込み（ヘッダーなし）
-            df_raw = pd.read_csv(uploaded_file, encoding="cp932", header=None, dtype=str)
-            if df_raw.shape[0] < 2:
-                st.warning("アップロードされたファイルには2行目以降がありません。2行以上のCSVをご用意ください。")
-                return
+    # ヘッダーなしで読み込み、1行目を見出し行扱い・2行目以降をデータとして使う
+    df_raw = pd.read_csv(uploaded_file, encoding="cp932", header=None, dtype=str)
+    if df_raw.shape[0] < 2:
+        st.warning("2行目以降のデータがありません。")
+        st.stop()
 
-            # 1行目をヘッダーとして保持、2行目以降をデータとする
-            header_row = df_raw.iloc[0].copy()
-            data_df = df_raw.iloc[1:].copy()
+    # 1行目（ヘッダー）と、2行目以降（データ）を分割
+    header_row = df_raw.iloc[0].copy()
+    data_df = df_raw.iloc[1:].copy().reset_index(drop=True)
 
-            st.write("### ▼アップロード内容（先頭3行）")
-            st.dataframe(data_df.head(3))
+    # 各種列インデックス
+    #   - Y列(25列目) → 0ベースで24
+    #   - Z列(26列目) → 0ベースで25
+    #   - ここでは「6列目の注文者氏名」を 0ベースで 5 と仮定（実際のCSVに合わせて修正してください）
+    Y_COL_IDX = 24
+    Z_COL_IDX = 25
+    NAME_COL_IDX = 5  # 「どの注文か分かるように表示したい氏名が入っている列」
 
-            # --------------------------------------------------
-            # 1) Y列が空欄のものをユーザーに入力してもらう
-            # --------------------------------------------------
-            # Y列(Excelで25列目) = 0ベース24
-            Y_col_idx = 24
+    # 空欄のY列をフォームで入力してもらう（1行ずつ）
+    data_df[Y_COL_IDX] = data_df[Y_COL_IDX].fillna("")
+    missing_mask = data_df[Y_COL_IDX].str.strip() == ""
+    missing_indices = data_df[missing_mask].index
 
-            # Y列が "NaN" または 空文字 の行を抽出
-            # （str.strip() の前に、文字列以外(NaN含む)の場合に備えて fillna("") しておく）
-            data_df[Y_col_idx] = data_df[Y_col_idx].fillna("")
-            missing_y_mask = data_df[Y_col_idx].str.strip() == ""
-            missing_indices = data_df[missing_y_mask].index
+    st.write("### ▼ データプレビュー（先頭3行）")
+    st.dataframe(data_df.head(3))
 
-            # 空欄の行がある場合だけフォーム表示
-            if len(missing_indices) > 0:
-                st.warning(f"Y列が空欄のデータが {len(missing_indices)} 件あります。値を入力してください。")
-                with st.form("fill_y_form"):
-                    # 行ごとに text_input
-                    for idx in missing_indices:
-                        current_val = data_df.at[idx, Y_col_idx]
-                        # key は重複しないように (row番号などを付与)
-                        st.text_input(
-                            label=f"行 {idx} の Y列(25列目)",
-                            key=f"yvalue_{idx}",
-                            value=current_val  # 初期値は空だが、一応取得
-                        )
-                    submitted = st.form_submit_button("更新")
-                
-                if submitted:
-                    # フォーム入力された値を data_df に反映
-                    for idx in missing_indices:
-                        new_val = st.session_state.get(f"yvalue_{idx}", "").strip()
-                        data_df.at[idx, Y_col_idx] = new_val
-                    st.success("Y列の空欄更新が完了しました。")
-                    
-                    # 更新後の先頭3行をプレビュー
-                    st.write("### ▼Y列更新後プレビュー（先頭3行）")
-                    st.dataframe(data_df.head(3))
-            else:
-                st.info("Y列に空欄はありません。")
+    # ▼ フォーム開始
+    #   「変換を実行」ボタンが押されると、そのタイミングで Y列更新＆変換処理までやる
+    with st.form("fill_y_and_convert"):
+        if len(missing_indices) > 0:
+            st.warning(f"Y列が空欄の行が {len(missing_indices)} 件あります。値を入力してください。")
 
-            # --------------------------------------------------
-            # 2)～5) の変換処理を実行するボタン
-            # --------------------------------------------------
-            if st.button("変換を実行"):
-                # --- (2) Y列を全角化 & 17文字以上を Z 列(26列目=0ベース25)へ ---
-                Z_col_idx = 25
-                for i in range(len(data_df)):
-                    val_y = data_df.iat[i, Y_col_idx] or ""
-                    # 全角化
-                    full_val_y = to_fullwidth(val_y)
-
-                    if len(full_val_y) >= 17:
-                        data_df.iat[i, Y_col_idx] = full_val_y[:16]
-                        data_df.iat[i, Z_col_idx] = full_val_y[16:]
-                    else:
-                        data_df.iat[i, Y_col_idx] = full_val_y
-
-                # --- (3) Y列でソート ---
-                data_df = data_df.sort_values(by=Y_col_idx, ascending=True, na_position='first')
-                data_df.reset_index(drop=True, inplace=True)
-
-                # --- (4) AZ列(52列目=0ベース51) に "011" を代入 ---
-                AZ_col_idx = 51
-                # 列数が足りない場合は増やす
-                if AZ_col_idx >= data_df.shape[1]:
-                    # 今ある列数より多い場合は空列を追加する
-                    for _ in range(AZ_col_idx - data_df.shape[1] + 1):
-                        data_df[data_df.shape[1]] = ""
-                data_df[AZ_col_idx] = "011"
-
-                # --- (5) ヘッダー行を上に戻す ---
-                final_df = pd.concat([header_row.to_frame().T, data_df], ignore_index=True)
-
-                st.write("### ▼変換後のデータプレビュー（先頭3行）")
-                st.dataframe(final_df.head(3))
-
-                # ダウンロード
-                csv_str = final_df.to_csv(index=False, header=False, encoding="cp932")
-                st.download_button(
-                    label="変換後CSVをダウンロード",
-                    data=csv_str.encode("cp932"),
-                    file_name="converted.csv",
-                    mime="text/csv"
+            for idx in missing_indices:
+                # 6列目の氏名(例: NAME_COL_IDX=5)を取得して表示
+                name_val = data_df.iat[idx, NAME_COL_IDX] or ""
+                current_y = data_df.iat[idx, Y_COL_IDX] or ""
+                st.text_input(
+                    label=f"行 {idx} / 注文者：{name_val} の Y列",
+                    key=f"y_input_{idx}",
+                    value=current_y
                 )
+        else:
+            st.info("Y列に空欄はありません。必要がなければそのまま変換実行できます。")
 
-        except Exception as e:
-            st.error(f"CSVの処理中にエラーが発生しました: {e}")
+        # フォーム内のボタンを1つにまとめ、押すと同時にY列更新＆変換
+        do_transform = st.form_submit_button("Y列を更新して変換を実行")
+
+        if do_transform:
+            # ▼ 1) Y列を更新（フォーム入力値をDataFrameに反映）
+            for idx in missing_indices:
+                new_val = st.session_state.get(f"y_input_{idx}", "").strip()
+                data_df.iat[idx, Y_COL_IDX] = new_val
+
+            # ▼ 2) 変換処理
+            #     (a) 全角化 & 17文字目以降をZ列へ
+            for i in range(len(data_df)):
+                val_y = data_df.iat[i, Y_COL_IDX] or ""
+                full_val = to_fullwidth(val_y)
+                if len(full_val) >= 17:
+                    data_df.iat[i, Y_COL_IDX] = full_val[:16]
+                    data_df.iat[i, Z_COL_IDX] = full_val[16:]
+                else:
+                    data_df.iat[i, Y_COL_IDX] = full_val
+
+            #     (b) Y列で昇順ソート
+            data_df.sort_values(by=Y_COL_IDX, inplace=True)
+            data_df.reset_index(drop=True, inplace=True)
+
+            #     (c) AZ列(52列目=0ベース51) に "001" をセット
+            AZ_COL_IDX = 51
+            # 列数が足りない場合は空列を追加
+            if AZ_COL_IDX >= data_df.shape[1]:
+                for _ in range(AZ_COL_IDX - data_df.shape[1] + 1):
+                    data_df[data_df.shape[1]] = ""
+            data_df[AZ_COL_IDX] = "001"
+
+            #     (d) ヘッダーを結合
+            final_df = pd.concat([header_row.to_frame().T, data_df], ignore_index=True)
+
+            st.success("Y列の更新＆変換が完了しました！")
+            st.write("### ▼ 変換後データ（先頭3行）")
+            st.dataframe(final_df.head(3))
+
+            # ダウンロードボタン
+            csv_str = final_df.to_csv(index=False, header=False, encoding="cp932")
+            st.download_button(
+                label="変換後CSVをダウンロード",
+                data=csv_str.encode("cp932"),
+                file_name="converted.csv",
+                mime="text/csv"
+            )
+
+            # 処理完了したので break 的に抜ける
+            st.stop()
 
 if __name__ == "__main__":
     main()
