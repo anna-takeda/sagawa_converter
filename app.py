@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import mojimoji
+from datetime import datetime
 
 def to_fullwidth(s: str) -> str:
     """半角→全角"""
@@ -91,12 +92,16 @@ def main():
         final_df = st.session_state["final_df"]
         st.write("### ▼変換後データ（先頭3行）")
         st.dataframe(final_df.head(3))
+        
+        # ▼ここが変更点：実行時日付をファイル名に入れる
+        today_str = datetime.now().strftime('%Y%m%d')  # YYYYMMDD 形式
+        file_name = f"{today_str}_sagawa_converted.csv"
 
         csv_str = final_df.to_csv(index=False, header=False, encoding="cp932")
         st.download_button(
             label="変換後CSVをダウンロード",
             data=csv_str.encode("cp932"),
-            file_name="converted.csv",
+            file_name=file_name,  # 日付入りファイル名
             mime="text/csv"
         )
 
