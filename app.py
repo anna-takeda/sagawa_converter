@@ -39,7 +39,7 @@ def main():
 
     with st.form("fill_y_form"):
         if len(missing_indices) > 0:
-            st.warning(f"Y列が空欄の行が {len(missing_indices)} 件あります。値を入力してください。")
+            st.warning(f"商品名が空欄の行が {len(missing_indices)} 件あります。値を入力してください。")
             for idx in missing_indices:
                 name_val = data_df.iat[idx, NAME_COL_IDX] or ""
                 current_y = data_df.iat[idx, Y_COL_IDX] or ""
@@ -49,7 +49,7 @@ def main():
                     value=current_y
                 )
         else:
-            st.info("Y列に空欄はありません。")
+            st.info("商品名空欄はありません。")
 
         # フォーム送信ボタン：押したらY列更新 → 変換 → セッションへ保存
         submitted = st.form_submit_button("変換を実行")
@@ -73,18 +73,18 @@ def main():
             data_df.sort_values(by=Y_COL_IDX, inplace=True)
             data_df.reset_index(drop=True, inplace=True)
 
-            # AZ列に"001"をセット
+            # AZ列に"011"をセット
             # 列が足りない場合は追加
             if AZ_COL_IDX >= data_df.shape[1]:
                 for _ in range(AZ_COL_IDX - data_df.shape[1] + 1):
                     data_df[data_df.shape[1]] = ""
-            data_df[AZ_COL_IDX] = "001"
+            data_df[AZ_COL_IDX] = "011"
 
             # ヘッダー結合
             final_df = pd.concat([header_row.to_frame().T, data_df], ignore_index=True)
 
             st.session_state["final_df"] = final_df
-            st.success("Y列の更新＆変換が完了しました！")
+            st.success("商品名の更新＆変換が完了しました！")
 
     # フォーム外でダウンロードボタンを表示
     if "final_df" in st.session_state:
