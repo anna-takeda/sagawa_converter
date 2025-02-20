@@ -71,8 +71,8 @@ def main():
                     data_df.iat[i, Y_COL_IDX] = full_val
 
             # Y列ソート
-            data_df.sort_values(by=Y_COL_IDX, inplace=True)
-            data_df.reset_index(drop=True, inplace=True)
+            # data_df.sort_values(by=Y_COL_IDX, inplace=True)
+            # data_df.reset_index(drop=True, inplace=True)
 
             # AZ列に"011"をセット
             # 列が足りない場合は追加
